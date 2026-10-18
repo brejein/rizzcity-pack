@@ -128,18 +128,24 @@ def git(*a):
 
 
 def publish(out, ver):
-    if not os.path.isdir(os.path.join(REPO_DIR, ".git")):
-        subprocess.run(["git", "clone", "-q", f"https://github.com/{REPO}.git", REPO_DIR], check=True)
-    git("checkout", "-q", "--orphan", "build")
-    git("rm", "-rq", "--cached", "--ignore-unmatch", ".")
-    shutil.copyfile(out, os.path.join(REPO_DIR, "RizzCity.zip"))
-    git("add", "RizzCity.zip")
-    git("-c", "user.name=rizzcity-build", "-c", "user.email=build@rizzcity.local", "commit", "-q", "-m", f"RizzCity V{ver}")
-    git("push", "-q", "-f", "origin", "build:pack")
-    sha = git("rev-parse", "HEAD")
-    git("checkout", "-q", "-B", "main")
-    git("branch", "-q", "-D", "build")
-    return f"https://raw.githubusercontent.com/{REPO}/{sha}/RizzCity.zip"
+    d = os.path.join(HERE, "publish")
+    os.makedirs(d, exist_ok=True)
+
+    def g(*a):
+        r = subprocess.run(["git", "-C", d, *a], capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.exit("git gagal: " + " ".join(a) + "
+" + r.stderr[-500:])
+        return r.stdout.strip()
+
+    if not os.path.isdir(os.path.join(d, ".git")):
+        g("init", "-q")
+    g("checkout", "-q", "--orphan", f"p{ver}")
+    shutil.copyfile(out, os.path.join(d, "RizzCity.zip"))
+    g("add", "RizzCity.zip")
+    g("-c", "user.name=rizzcity-build", "-c", "user.email=build@rizzcity.local", "commit", "-q", "-m", f"RizzCity V{ver}")
+    g("push", "-q", "-f", f"https://github.com/{REPO}.git", f"p{ver}:pack")
+    return f"https://raw.githubusercontent.com/{REPO}/{g('rev-parse', 'HEAD')}/RizzCity.zip"
 
 
 def set_url(url):
