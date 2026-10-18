@@ -134,8 +134,7 @@ def publish(out, ver):
     def g(*a):
         r = subprocess.run(["git", "-C", d, *a], capture_output=True, text=True)
         if r.returncode != 0:
-            sys.exit("git gagal: " + " ".join(a) + "
-" + r.stderr[-500:])
+            sys.exit("git gagal: " + " ".join(a) + "\n" + r.stderr[-500:])
         return r.stdout.strip()
 
     if not os.path.isdir(os.path.join(d, ".git")):
