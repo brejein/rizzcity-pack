@@ -24,6 +24,7 @@ def sftp(prefix):
 
 
 def download():
+    print("Download generated.zip...", flush=True)
     t, s = sftp("CITY")
     s.get("/plugins/ItemsAdder/output/generated.zip", build.SRC)
     t.close()
@@ -118,6 +119,8 @@ def sync_lobby():
             b = {}
             mkdirs(sl, dst)
         for rel in a:
+            if b.get(rel) == a[rel]:
+                continue
             mkdirs(sl, posixpath.dirname(posixpath.join(dst, rel)))
             with sc.open(posixpath.join(src, rel), "rb") as f, sl.open(posixpath.join(dst, rel), "wb") as g:
                 g.write(f.read())

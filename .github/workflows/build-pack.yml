@@ -30,7 +30,7 @@ jobs:
           mkdir -p tool
           unzip -o -q ps.zip -d tool
           chmod +x tool/packsquash
-      - run: python ci_build.py "${{ github.event.inputs.version }}"
+      - run: python -u ci_build.py "${{ github.event.inputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CITY_HOST: ${{ secrets.CITY_HOST }}
