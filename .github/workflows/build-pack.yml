@@ -1,0 +1,47 @@
+name: Build RizzCity pack
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versi pack (kosongkan = otomatis)"
+        required: false
+        default: ""
+
+concurrency:
+  group: build-pack
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pillow paramiko
+      - run: |
+          curl -sL -o ps.zip https://github.com/ComunidadAylas/PackSquash/releases/download/v0.4.1/packsquash-x86_64-unknown-linux-musl.zip
+          mkdir -p tool
+          unzip -o -q ps.zip -d tool
+          chmod +x tool/packsquash
+      - run: python ci_build.py "${{ github.event.inputs.version }}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CITY_HOST: ${{ secrets.CITY_HOST }}
+          CITY_PORT: ${{ secrets.CITY_PORT }}
+          CITY_USER: ${{ secrets.CITY_USER }}
+          CITY_PASS: ${{ secrets.CITY_PASS }}
+          LOBBY_HOST: ${{ secrets.LOBBY_HOST }}
+          LOBBY_PORT: ${{ secrets.LOBBY_PORT }}
+          LOBBY_USER: ${{ secrets.LOBBY_USER }}
+          LOBBY_PASS: ${{ secrets.LOBBY_PASS }}
+          PROXY_HOST: ${{ secrets.PROXY_HOST }}
+          PROXY_PORT: ${{ secrets.PROXY_PORT }}
+          PROXY_USER: ${{ secrets.PROXY_USER }}
+          PROXY_PASS: ${{ secrets.PROXY_PASS }}
