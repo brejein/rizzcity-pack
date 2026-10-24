@@ -7,6 +7,7 @@ WINSCP = r"C:\Program Files (x86)\WinSCP\WinSCP.com"
 SRC = os.path.join(HERE, "generated.zip")
 WORK = os.path.join(HERE, "work")
 LIGHT_TEXT = True
+MERGE_BH = False
 CACHE = os.path.join(HERE, "cache.zip")
 PS = os.path.join(HERE, "tool", "packsquash.exe")
 REPO = "brejein/rizzcity-pack"
@@ -226,7 +227,7 @@ def shaders():
     bh = os.path.join(WORK, "betterhud_1_21_6", core, "rendertype_text.vsh")
     uui_dir = os.path.join(WORK, "uui_1_21_x")
     uui = os.path.join(uui_dir, core, "rendertype_text.vsh")
-    if os.path.exists(bh) and os.path.exists(uui):
+    if MERGE_BH and os.path.exists(bh) and os.path.exists(uui):
         src = open(bh, encoding="utf-8").read()
         if "make_hud()" not in src:
             i = src.index("void main()")
