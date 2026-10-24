@@ -87,7 +87,7 @@ def walk(s, root):
             if stat.S_ISDIR(e.st_mode):
                 stack.append(p)
             elif not e.filename.endswith(".tar.gz"):
-                out[p] = e.st_size
+                out[p] = (e.st_size, e.st_mtime)
     return out
 
 
@@ -118,15 +118,23 @@ def sync_lobby():
         except IOError:
             b = {}
             mkdirs(sl, dst)
+        known = {posixpath.dirname(posixpath.join(dst, rel)) for rel in b}
+        n = 0
         for rel in a:
-            if b.get(rel) == a[rel]:
+            old = b.get(rel)
+            if old and old[0] == a[rel][0] and old[1] >= a[rel][1]:
                 continue
-            mkdirs(sl, posixpath.dirname(posixpath.join(dst, rel)))
+            parent = posixpath.dirname(posixpath.join(dst, rel))
+            if parent not in known:
+                mkdirs(sl, parent)
+                known.add(parent)
+            n += 1
             with sc.open(posixpath.join(src, rel), "rb") as f, sl.open(posixpath.join(dst, rel), "wb") as g:
                 g.write(f.read())
         for rel in b:
             if rel not in a:
                 sl.remove(posixpath.join(dst, rel))
+        print(f"  {d}: {n} file disalin dari {len(a)}", flush=True)
     for name in ("font_images_unicode_cache.yml", "items_ids_cache.yml"):
         with sc.open(f"/plugins/ItemsAdder/storage/{name}", "rb") as f, sl.open(f"/plugins/ItemsAdder/storage/{name}", "wb") as g:
             g.write(f.read())
