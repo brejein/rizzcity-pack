@@ -253,7 +253,25 @@ def shaders():
                         "(((int(Position.y) >> HEIGHT_BIT) >> MAX_BIT) & 1) == 1; "
                         "if (!uuiBh && uui_bb()) {applyColor = 0; sphericalVertexDistance = -1.0e6; "
                         "cylindricalVertexDistance = -1.0e6; return;}")
-            hook = (init + mchk + bchk + "if (make_hud()) {" + setc + "vertexColor = Color; texCoord0 = UV0; applyColor = 0; "
+            smap = ""
+            scall = ""
+            if "uui_smap_vertex(" in usrc and "out vec2 uuiMapUv;" in usrc:
+                a = usrc.index("out vec2 uuiMapUv;")
+                b = usrc.index("flat out vec4 uuiMapPaintB;") + len("flat out vec4 uuiMapPaintB;")
+                smap = "\n" + usrc[a:b] + "\n#moj_import <minecraft:uui_screenmap_vertex.glsl>"
+                k = usrc.index("if (uui_smap_vertex(")
+                d = 0
+                e = usrc.index("{", k)
+                for e in range(e, len(usrc)):
+                    if usrc[e] == "{":
+                        d += 1
+                    elif usrc[e] == "}":
+                        d -= 1
+                        if d == 0:
+                            break
+                scall = usrc[k:e + 1].replace("vertexColor = vec4(1.0);", "vertexColor = vec4(1.0); applyColor = 0;")
+            bb += smap
+            hook = (init + scall + mchk + bchk + "if (make_hud()) {" + setc + "vertexColor = Color; texCoord0 = UV0; applyColor = 0; "
                     "sphericalVertexDistance = -1.0e6; cylindricalVertexDistance = -1.0e6; return;}")
             src = src[:i] + decl + "\n#moj_import <hud.glsl>" + mimp + bb + "\n" + src[i:j] + hook + src[j:]
         for dst in (bh, uui):
