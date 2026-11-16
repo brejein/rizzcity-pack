@@ -17,8 +17,6 @@ VEH_COLOR_ALIAS = {"silver": "white", "yellow": "white", "blue": "black", "green
 UI_DROP = ("hud_bodyhealth_",)
 LOGO = ("assets/minecraft/textures/gui/title/mojangstudios.png", 1024)
 STRIP = (
-    "assets/minecraft/font/editor.json",
-    "assets/minecraft/textures/font/editor/",
     "assets/betterhud/font/hud_rizz_wheel_image.json",
     "assets/betterhud/textures/image_rizzcity_ref_ktprizz.png",
 )
