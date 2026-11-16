@@ -1,6 +1,6 @@
 import io
 from PIL import Image, ImageFile
-import os, re, sys, json, shutil, struct, subprocess, zipfile, zlib
+import os, re, sys, json, shutil, struct, subprocess, zipfile, zlib, hashlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WINSCP = r"C:\Program Files (x86)\WinSCP\WinSCP.com"
@@ -11,6 +11,18 @@ CACHE = os.path.join(HERE, "cache.zip")
 PS = os.path.join(HERE, "tool", "packsquash.exe")
 REPO = "brejein/rizzcity-pack"
 REPO_DIR = os.path.join(HERE, "repo")
+VEH_NS = "nusa_vehicles"
+VEH_MAX = 256
+VEH_COLOR_ALIAS = {"silver": "white", "yellow": "white", "blue": "black", "green": "black", "orange": "red"}
+UI_DROP = ("hud_bodyhealth_",)
+LOGO = ("assets/minecraft/textures/gui/title/mojangstudios.png", 1024)
+STRIP = (
+    "assets/minecraft/font/editor.json",
+    "assets/minecraft/textures/font/editor/",
+    "assets/betterhud/font/hud_rizz_wheel_image.json",
+    "assets/betterhud/textures/image_rizzcity_ref_ktprizz.png",
+)
+STRIP_RE = re.compile(r"assets/betterhud/textures/image_rizz_(w\d+|center)_")
 
 
 def download():
@@ -342,6 +354,158 @@ def extras():
     print(f"Extra assets: {n} file")
 
 
+def wpath(rel):
+    return os.path.join(WORK, *rel.split("/"))
+
+
+def wrel(p):
+    return os.path.relpath(p, WORK).replace(os.sep, "/")
+
+
+def wjson(p, obj):
+    open(p, "w", encoding="utf-8").write(json.dumps(obj, separators=(",", ":"), ensure_ascii=False))
+
+
+def shrink(p, cap):
+    im = Image.open(p)
+    w, h = im.size
+    if max(w, h) <= cap:
+        return False
+    f = cap / max(w, h)
+    size = (max(1, round(w * f)), max(1, round(h * f)))
+    im.convert("RGBA").convert("RGBa").resize(size, Image.LANCZOS).convert("RGBA").save(p)
+    return True
+
+
+def nsid(v):
+    return v if ":" in v else "minecraft:" + v
+
+
+def vehicles():
+    mdir = wpath(f"assets/{VEH_NS}/models/item")
+    if not os.path.isdir(mdir):
+        return
+    names = {f[:-5] for f in os.listdir(mdir) if f.endswith(".json")}
+    alias = 0
+    for n in sorted(names):
+        for c, k in VEH_COLOR_ALIAS.items():
+            if n.endswith("_" + c):
+                t = n[:-len(c)] + k
+                if t in names:
+                    wjson(os.path.join(mdir, n + ".json"), {"parent": f"{VEH_NS}:item/{t}"})
+                    alias += 1
+                break
+    groups = {}
+    for n in sorted(names):
+        j = json.load(open(os.path.join(mdir, n + ".json"), encoding="utf-8"))
+        if "elements" not in j:
+            continue
+        base = {k: j[k] for k in ("parent", "ambientocclusion", "gui_light", "display", "elements") if k in j}
+        key = json.dumps(base, sort_keys=True, separators=(",", ":"))
+        groups.setdefault(key, []).append((n, j))
+    geo = 0
+    for key, items in groups.items():
+        if len(items) < 2:
+            continue
+        gid = "geo_" + hashlib.md5(key.encode()).hexdigest()[:10]
+        open(os.path.join(mdir, gid + ".json"), "w", encoding="utf-8").write(key)
+        for n, j in items:
+            child = {"parent": f"{VEH_NS}:item/{gid}"}
+            if "textures" in j:
+                child["textures"] = j["textures"]
+            wjson(os.path.join(mdir, n + ".json"), child)
+        geo += 1
+    refs = set()
+    for root, dirs, files in os.walk(WORK):
+        if os.path.basename(root) != "models" and os.sep + "models" + os.sep not in root + os.sep:
+            continue
+        for f in files:
+            if not f.endswith(".json"):
+                continue
+            try:
+                j = json.load(open(os.path.join(root, f), encoding="utf-8"))
+            except Exception:
+                continue
+            tex = j.get("textures") if isinstance(j, dict) else None
+            for v in (tex or {}).values():
+                if isinstance(v, str) and not v.startswith("#"):
+                    refs.add(nsid(v))
+    cut = set()
+    for root, dirs, files in os.walk(WORK):
+        if os.path.basename(root) != "atlases":
+            continue
+        for f in files:
+            if not f.endswith(".json"):
+                continue
+            p = os.path.join(root, f)
+            j = json.load(open(p, encoding="utf-8"))
+            out = []
+            for s in j.get("sources", []):
+                r = nsid(s.get("resource", ""))
+                if s.get("type") == "single" and r.startswith(VEH_NS + ":"):
+                    sp = nsid(s.get("sprite", r))
+                    if sp not in refs and r not in refs:
+                        cut.add(r)
+                        continue
+                out.append(s)
+            if len(out) != len(j.get("sources", [])):
+                j["sources"] = out
+                wjson(p, j)
+    keep = set()
+    for root, dirs, files in os.walk(WORK):
+        if os.path.basename(root) == "atlases":
+            for f in files:
+                if f.endswith(".json"):
+                    for s in json.load(open(os.path.join(root, f), encoding="utf-8")).get("sources", []):
+                        keep.add(nsid(s.get("resource", "")))
+    tdir = wpath(f"assets/{VEH_NS}/textures")
+    dropped = shrunk = 0
+    for root, dirs, files in os.walk(tdir):
+        for f in files:
+            if not f.endswith(".png"):
+                continue
+            p = os.path.join(root, f)
+            r = VEH_NS + ":" + wrel(p)[len(f"assets/{VEH_NS}/textures/"):-4]
+            if r in cut and r not in keep and r not in refs:
+                os.remove(p)
+                dropped += 1
+            elif shrink(p, VEH_MAX):
+                shrunk += 1
+    print(f"Kendaraan: {alias} model warna dialihkan, {geo} geometri digabung, {dropped} texture dibuang, {shrunk} texture jadi max {VEH_MAX}px")
+
+
+def optimize():
+    gone = 0
+    for root, dirs, files in os.walk(WORK):
+        for f in files:
+            p = os.path.join(root, f)
+            r = wrel(p)
+            if r in STRIP or any(r.startswith(s) for s in STRIP if s.endswith("/")) or STRIP_RE.match(r):
+                os.remove(p)
+                gone += 1
+    ui = wpath("assets/minecraft/font/uiimages.json")
+    if os.path.exists(ui):
+        j = json.load(open(ui, encoding="utf-8"))
+        keep = []
+        for pr in j.get("providers", []):
+            m = re.match(r"minecraft:font/images/(.+\.png)$", pr.get("file", ""))
+            if m and m.group(1).startswith(UI_DROP):
+                t = wpath("assets/minecraft/textures/font/images/" + m.group(1))
+                if os.path.exists(t):
+                    os.remove(t)
+                    gone += 1
+                continue
+            keep.append(pr)
+        if len(keep) != len(j.get("providers", [])):
+            j["providers"] = keep
+            wjson(ui, j)
+    logo = wpath(LOGO[0])
+    if os.path.exists(logo) and shrink(logo, LOGO[1]):
+        print(f"Logo loading diperkecil ke {LOGO[1]}px")
+    print(f"Optimasi: {gone} file dibuang")
+    vehicles()
+
+
 def squash(out):
     opts = os.path.join(HERE, "options.toml")
     with open(opts, "w", encoding="utf-8") as f:
@@ -404,6 +568,7 @@ if __name__ == "__main__":
     fonts()
     shaders()
     extras()
+    optimize()
     squash(out)
     after = os.path.getsize(out)
     os.remove(SRC)

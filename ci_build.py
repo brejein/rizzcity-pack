@@ -153,6 +153,7 @@ def main():
     build.fonts()
     build.shaders()
     build.extras()
+    build.optimize()
     build.squash(out)
     after = os.path.getsize(out)
     url = publish(out, ver)
