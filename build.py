@@ -37,15 +37,34 @@ def download():
 def fixpng(d):
     if d[:8] != b"\x89PNG\r\n\x1a\n":
         return d
-    out = bytearray(d[:8])
+    chunks = []
+    idat = b""
     p = 8
     while p + 12 <= len(d):
         ln = struct.unpack(">I", d[p:p + 4])[0]
         body = d[p + 4:p + 8 + ln]
-        out += d[p:p + 4] + body + struct.pack(">I", zlib.crc32(body) & 0xffffffff)
         p += 12 + ln
+        if body[:4] == b"IDAT":
+            if not idat:
+                chunks.append(None)
+            idat += body[4:]
+        else:
+            chunks.append(body)
         if body[:4] == b"IEND":
             break
+    if idat:
+        try:
+            zlib.decompress(idat)
+        except zlib.error:
+            try:
+                idat = zlib.compress(zlib.decompressobj(-15).decompress(idat[2:]), 9)
+            except zlib.error:
+                pass
+    out = bytearray(d[:8])
+    for body in chunks:
+        if body is None:
+            body = b"IDAT" + idat
+        out += struct.pack(">I", len(body) - 4) + body + struct.pack(">I", zlib.crc32(body) & 0xffffffff)
     return bytes(out)
 
 
